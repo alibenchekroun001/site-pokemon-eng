@@ -35,12 +35,10 @@ function getMultiplier(attacker, defender){
 }
 
 function animateIn(el, opts = {}) {
-  // simple fade + slide animation controlled in JS so you don't need to modify CSS
   const { fromY = 12, fromX = 0, delay = 10, duration = 300 } = opts;
   el.style.opacity = '0';
   el.style.transform = `translate(${fromX}px, ${fromY}px)`;
   el.style.transition = `opacity ${duration}ms ease, transform ${duration}ms ease`;
-  // small delay to ensure transition triggers
   requestAnimationFrame(() => {
     setTimeout(() => {
       el.style.opacity = '1';
@@ -49,7 +47,6 @@ function animateIn(el, opts = {}) {
   });
 }
 
-// pulse animation for button feedback
 function pulseButton(btn){
   btn.style.transition = 'transform 140ms ease';
   btn.style.transform = 'scale(1.05)';
@@ -85,7 +82,6 @@ function createTypeGrid(container, onClick, small=false){
       onClick(t);
     });
     grid.appendChild(cell);
-    // anime chaque cellule avec un léger décalage
     animateIn(cell, { fromY: 8, delay: 15 * (TYPES.indexOf(t) % 6) });
   });
   container.appendChild(grid);
@@ -125,10 +121,23 @@ function showResults(parent, lists, modeLabel){
 
   parent.appendChild(wrapper);
 
-  // anime les panneaux avec un léger décalage
   [p1,p2,p3].forEach((p, i) => {
     setTimeout(() => animateIn(p, { fromX: 14, duration: 360 }), i * 90);
   });
+}
+
+// ---------- Bouton Back ----------
+function addBackButton(container){
+  const old = document.getElementById('back-btn');
+  if(old) old.remove();
+  const btn = document.createElement('button');
+  btn.id = 'back-btn';
+  btn.textContent = 'Back';
+  btn.addEventListener('click', () => {
+    const app = document.getElementById('app');
+    if(app) attackMode(app);
+  });
+  container.appendChild(btn);
 }
 
 // ---------- Modes ----------
@@ -136,7 +145,6 @@ function attackMode(root){
   clearAndFocus(root);
   root.appendChild(make('Attack Mode — Choose an Attacking Type'));
   createTypeGrid(root, (type) => {
-    // calcule pour chaque défense
     const forces = [], weaknesses = [], neutral = [];
     TYPES.forEach(def => {
       const m = getMultiplier(type, def);
@@ -146,71 +154,87 @@ function attackMode(root){
       else neutral.push({type:def, mult:'x1'});
     });
     showResults(root, {forces, weaknesses, neutral}, 'attaque');
+    addBackButton(root);
   });
+  addBackButton(root);
 }
 
 function defenseSingleMode(root){
   clearAndFocus(root);
-  root.appendChild(make('Mode Défense (1 type) — Choisissez un Type Défenseur'));
+  root.appendChild(make('Defense Mode (1 type) — Choose a Defender Type'));
   createTypeGrid(root, (type) => {
-    // forces stockera les "faiblesses de défense" (Super Efficace: x2) 
-    // weaknesses stockera les "résistances de défense" (Peu Efficace/Immunisé: x0, x0.5)
-    const forces = [], weaknesses = [], neutral = []; 
+    const forces = [], weaknesses = [], neutral = [];
     TYPES.forEach(att => {
       const m = getMultiplier(att, type);
-      
-      // ECHANGE: si l'attaque est SUPER EFFICACE (x2) pour la défense -> Va dans la case "Super Efficace (x2 ou x4)"
-      if(m === 2) forces.push({type:att, mult:'x2'}); 
-      
-      // ECHANGE: si l'attaque est PEU EFFICACE/IMMUNISÉE (x0, x0.5) pour la défense -> Va dans la case "Peu Efficace/Immunisé (x0, x0.25, x0.5)"
-      else if(m === 0 || m === 0.5) weaknesses.push({type:att, mult: m===0 ? 'x0' : 'x0.5'}); 
-      
+      if(m === 2) forces.push({type:att, mult:'x2'});
+      else if(m === 0 || m === 0.5) weaknesses.push({type:att, mult: m===0 ? 'x0' : 'x0.5'});
       else neutral.push({type:att, mult:'x1'});
     });
-    // showResults affiche forces dans le 1er panneau et weaknesses dans le 2ème. Les listes ont été ajustées ci-dessus.
     showResults(root, {forces, weaknesses, neutral}, 'defense-single');
+    addBackButton(root);
   });
 }
 
 function defenseDoubleMode(root){
   clearAndFocus(root);
-  root.appendChild(make('Mode Défense (2 types) — Choisissez le premier type'));
+  root.appendChild(make('Defense Mode (2 types) — Select the first type'));
   createTypeGrid(root, (first) => {
-    // show second selection (small grid)
     clearAndFocus(root);
-    const info = document.createElement('div'); info.className='center';
-    info.innerHTML = `<h2>Choisissez le deuxième type (1er: ${first})</h2>`;
+
+    const info = document.createElement('div'); 
+    info.className='center';
+    info.innerHTML = `<h2>Choose the second type (1st: ${first})</h2>`;
     root.appendChild(info);
-    createTypeGrid(root, (second) => {
-      // forces stockera les "faiblesses de défense" (Super Efficace: x2, x4)
-      // weaknesses stockera les "résistances de défense" (Peu Efficace/Immunisé: x0, x0.25, x0.5)
-      const forces = [], weaknesses = [], neutral = [];
-      TYPES.forEach(att => {
-        const m1 = getMultiplier(att, first);
-        const m2 = getMultiplier(att, second);
-        const mult = +(m1 * m2); // numeric
-        
-        // ECHANGE: si l'attaque est SUPER EFFICACE (x2 ou x4) pour la défense -> Va dans la case "Super Efficace (x2 ou x4)"
-        if(mult === 2 || mult === 4){
-          let label = mult === 4 ? 'x4' : 'x2';
-          forces.push({type:att, mult:label}); 
-        
-        // ECHANGE: si l'attaque est PEU EFFICACE/IMMUNISÉE (x0, x0.25, x0.5) pour la défense -> Va dans la case "Peu Efficace/Immunisé (x0, x0.25, x0.5)"
-        } else if(mult === 0 || mult === 0.5 || mult === 0.25){
-          let label = 'x' + mult;
-          if(mult === 0.5) label = 'x0.5';
-          if(mult === 0.25) label = 'x0.25';
-          if(mult === 0) label = 'x0';
-          weaknesses.push({type:att, mult:label}); 
-        } else {
-          neutral.push({type:att, mult:'x1'});
-        }
-      });
-      // showResults affiche forces dans le 1er panneau et weaknesses dans le 2ème. Les listes ont été ajustées ci-dessus.
-      showResults(root, {forces, weaknesses, neutral}, 'defense-double');
+
+    const grid = document.createElement('div');
+    grid.className = 'type-grid';
+
+    TYPES.forEach(t => {
+      const cell = document.createElement('div');
+      cell.className = `type-cell type-${t}`;
+      cell.textContent = t;
+      cell.dataset.type = t;
+
+      if(t === first){
+        // Style pour indiquer que ce type est déjà choisi
+        cell.style.backgroundColor = 'white';
+        cell.style.color = 'black';
+        cell.style.cursor = 'not-allowed';
+      } else {
+        cell.style.cursor = 'pointer';
+        cell.addEventListener('click', () => {
+          pulseButton(cell);
+
+          const forces = [], weaknesses = [], neutral = [];
+          TYPES.forEach(att => {
+            const m1 = getMultiplier(att, first);
+            const m2 = getMultiplier(att, t);
+            const mult = +(m1 * m2);
+
+            if(mult === 2 || mult === 4){
+              forces.push({type:att, mult: mult===4 ? 'x4' : 'x2'});
+            } else if(mult === 0 || mult === 0.5 || mult === 0.25){
+              let label = mult === 0 ? 'x0' : mult === 0.5 ? 'x0.5' : 'x0.25';
+              weaknesses.push({type:att, mult:label});
+            } else {
+              neutral.push({type:att, mult:'x1'});
+            }
+          });
+
+          showResults(root, {forces, weaknesses, neutral}, 'defense-double');
+          addBackButton(root);
+        });
+      }
+
+      grid.appendChild(cell);
+      animateIn(cell, { fromY: 8, delay: 15 * (TYPES.indexOf(t) % 6) });
     });
+
+    root.appendChild(grid);
+    addBackButton(root);
   });
 }
+
 
 // ---------- Initial wiring ----------
 window.addEventListener('DOMContentLoaded', () => {
@@ -226,10 +250,9 @@ window.addEventListener('DOMContentLoaded', () => {
   attackBtn.addEventListener('click', (e) => { pulseButton(attackBtn); attackMode(app); });
   defenseBtn.addEventListener('click', (e) => {
     pulseButton(defenseBtn);
-    // show defense choice
     app.innerHTML = '';
     const c = document.createElement('div'); c.className='center';
-    c.innerHTML = '<h2>Mode Défense — Choisissez 1 ou 2 types</h2>';
+    c.innerHTML = '<h2>Defense Mode — Choose 1 or 2 types</h2>';
     app.appendChild(c);
     const controls = document.createElement('div'); controls.className='controls';
     const single = document.createElement('button'); single.className='small-btn'; single.textContent='One type only';
